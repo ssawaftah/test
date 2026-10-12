@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مؤشر وزن القبان الذكي | Weighbridge Scale Indicator</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Digital LED Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Tajawal:wght@400;500;700;800&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        industrial: {
+                            800: '#1e2530',
+                            900: '#121820',
+                            950: '#0a0d13',
+                        },
+                        amberled: {
+                            glow: '#ffb700',
+                            dark: '#332400',
+                            bg: '#171000'
+                        },
+                        greenled: {
+                            glow: '#00ff66',
+                            dark: '#003314'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Tajawal', 'sans-serif'],
+                        digital: ['Orbitron', 'Chakra Petch', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* CSS Custom Styles for LED Display and Animations */
+        body {
+            background-color: #0d1117;
+            color: #e6edf3;
+            font-family: 'Tajawal', sans-serif;
+        }
+
+        .led-display-container {
+            background: radial-gradient(circle at center, #1a2332 0%, #0a0d13 100%);
+            box-shadow: inset 0 0 25px rgba(0, 0, 0, 0.8), 0 10px 30px rgba(0,0,0,0.5);
+            border: 3px solid #2d3748;
+        }
+
+        .led-font-amber {
+            font-family: 'Orbitron', 'Chakra Petch', monospace;
+            color: #ffaa00;
+            text-shadow: 0 0 12px rgba(255, 170, 0, 0.8), 0 0 25px rgba(255, 170, 0, 0.4);
+        }
+
+        .led-font-green {
+            font-family: 'Orbitron', 'Chakra Petch', monospace;
+            color: #00ff66;
+            text-shadow: 0 0 12px rgba(0, 255, 102, 0.8), 0 0 25px rgba(0, 255, 102, 0.4);
+        }
+
+        .led-font-red {
+            font-family: 'Orbitron', 'Chakra Petch', monospace;
+            color: #ff3344;
+            text-shadow: 0 0 12px rgba(255, 51, 68, 0.8), 0 0 25px rgba(255, 51, 68, 0.4);
+        }
+
+        .led-background-ghost {
+            position: absolute;
+            font-family: 'Orbitron', monospace;
+            color: rgba(255, 255, 255, 0.03);
+            user-select: none;
+            z-index: 1;
+        }
+
+        .scanline {
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0, 0, 0, 0.3) 50%,
+                rgba(0, 0, 0, 0.3)
+            );
+            background-size: 100% 4px;
+        }
+
+        .pulse-indicator {
+            animation: pulse-glow 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.95); }
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111827;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4b5563;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-industrial-950 text-gray-100">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-industrial-900 border-b border-gray-800 px-4 py-3 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-amber-500/20 text-amber-500 p-2.5 rounded-xl border border-amber-500/30">
+                    <i class="fa-solid font-bold fa-truck-ramp-box text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-white tracking-wide flex items-center gap-2">
+                        مؤشر وزن القبان الذكي
+                        <span class="text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">v2.4 Live</span>
+                    </h1>
+                    <p class="text-xs text-gray-400">نظام ربط ومتابعة أجهزة القبان الصناعية عبر الـ API</p>
+                </div>
+            </div>
+
+            <!-- Global Actions / Quick Status -->
+            <div class="flex items-center gap-3">
+                <button onclick="toggleCorsModal()" class="text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-2 rounded-lg font-medium transition flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    <span>دليل تخطي حظر CORS</span>
+                </button>
+                <div class="h-6 w-[1px] bg-gray-800 hidden md:block"></div>
+                <div class="flex items-center gap-2 bg-gray-900 px-3 py-1.5 rounded-lg border border-gray-800 text-xs">
+                    <span id="connection-status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-500"></span>
+                    <span id="connection-status-text" class="text-gray-400 font-medium">غير متصل</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- LEFT COLUMN: Main Digital Scale Display & Quick Controls (lg:col-span-7) -->
+        <section class="lg:col-span-7 flex flex-col gap-6">
+            
+            <!-- INDUSTRIAL DIGITAL DISPLAY BOARD -->
+            <div class="led-display-container rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between min-h-[340px]">
+                <!-- CRT Scanline Effect -->
+                <div class="scanline absolute inset-0 pointer-events-none opacity-40 z-10"></div>
+
+                <!-- Display Top Panel / Indicators -->
+                <div class="flex justify-between items-start z-20 relative border-b border-gray-800/80 pb-3">
+                    <div class="flex items-center gap-4">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">الحالة</span>
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <span id="scale-status-light" class="w-3 h-3 rounded-full bg-gray-600"></span>
+                                <span id="scale-status-label" class="text-xs font-mono font-bold text-gray-400">STANDBY</span>
+                            </div>
+                        </div>
+                        <div class="h-6 w-[1px] bg-gray-800"></div>
+                        <div class="flex flex-col">
+                            <span class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">الاستجابة (Latency)</span>
+                            <span id="latency-val" class="text-xs font-mono font-bold text-amber-400 mt-0.5">-- ms</span>
+                        </div>
+                    </div>
+
+                    <!-- Mode Badges -->
+                    <div class="flex items-center gap-2">
+                        <span id="proxy-badge" class="hidden text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded">
+                            <i class="fa-solid fa-network-wired ml-1"></i>PROXIED
+                        </span>
+                        <span id="credentials-badge" class="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded">
+                            <i class="fa-solid fa-key ml-1"></i>COOKIE AUTH
+                        </span>
+                    </div>
+                </div>
+
+                <!-- CENTER: HUGE DIGITAL LED WEIGHT NUMBERS -->
+                <div class="relative my-8 flex items-center justify-center min-h-[140px] z-20">
+                    <!-- Ghosting effect for LED numbers -->
+                    <div class="led-backgroundghost text-6xl sm:text-7xl md:text-8xl font-bold tracking-widest">
+                        888888
+                    </div>
+
+                    <!-- Actual Active Number Display -->
+                    <div class="z-20 text-center">
+                        <div id="weight-display" class="led-font-amber text-6xl sm:text-7xl md:text-8xl font-bold tracking-wider transition-all duration-200">
+                            0.00
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Display Bottom Bar / Units & Tare Info -->
+                <div class="flex justify-between items-end z-20 relative border-t border-gray-800/80 pt-3">
+                    <div class="flex items-center gap-2">
+                        <button onclick="zeroScale()" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-xs text-gray-300 border border-gray-700 rounded-lg transition active:scale-95">
+                            <i class="fa-solid fa-arrows-to-dot ml-1"></i> تصفير شاشة (Zero)
+                        </button>
+                        <button onclick="toggleSimulatedData()" id="btn-simulate" class="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-xs text-amber-400 border border-amber-500/30 rounded-lg transition">
+                            <i class="fa-solid fa-vial ml-1"></i> وضع المحاكاة للتجربة
+                        </button>
+                    </div>
+
+                    <!-- Unit Switcher -->
+                    <div class="flex items-center bg-gray-900/90 p-1 rounded-lg border border-gray-800">
+                        <button onclick="setUnit('KG')" id="unit-kg-btn" class="px-3 py-1 text-xs font-bold rounded-md bg-amber-500 text-black transition">كغم (KG)</button>
+                        <button onclick="setUnit('TON')" id="unit-ton-btn" class="px-3 py-1 text-xs font-bold rounded-md text-gray-400 hover:text-white transition">طن (TON)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LIVE CONTROLS & AUTO REFRESH PANEL -->
+            <div class="bg-industrial-900 border border-gray-800 rounded-2xl p-5 shadow-lg">
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    
+                    <!-- Primary Fetch Buttons -->
+                    <div class="flex items-center gap-3">
+                        <button id="btn-fetch-now" onclick="fetchWeightData()" class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/10 transition active:scale-95 flex items-center gap-2">
+                            <i class="fa-solid fa-rotate text-sm" id="sync-icon"></i>
+                            <span>جلب الوزن الآن</span>
+                        </button>
+
+                        <button id="btn-auto-toggle" onclick="toggleAutoRefresh()" class="bg-gray-800 hover:bg-gray-700 text-gray-200 font-medium px-4 py-2.5 rounded-xl border border-gray-700 transition flex items-center gap-2">
+                            <i class="fa-solid fa-play text-emerald-400" id="auto-play-icon"></i>
+                            <span id="auto-btn-text">تفعيل التحديث التلقائي</span>
+                        </button>
+                    </div>
+
+                    <!-- Refresh Rate Selector -->
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-gray-400 font-medium">معدل التحديث:</label>
+                        <select id="refresh-interval" onchange="updateInterval()" class="bg-industrial-950 border border-gray-700 text-xs rounded-lg px-3 py-2 text-gray-200 focus:outline-none focus:border-amber-500">
+                            <option value="1000">كل 1 ثانية (سريع)</option>
+                            <option value="2000" selected>كل 2 ثانية (موصى به)</option>
+                            <option value="5000">كل 5 ثوانٍ</option>
+                            <option value="10000">كل 10 ثوانٍ</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Live Progress indicator bar -->
+                <div class="w-full bg-gray-800 h-1.5 rounded-full mt-4 overflow-hidden">
+                    <div id="refresh-progress" class="bg-amber-500 h-full w-0 transition-all duration-300"></div>
+                </div>
+            </div>
+
+            <!-- QUICK GUIDE / TIPS CARD -->
+            <div class="bg-indigo-950/30 border border-indigo-900/50 rounded-2xl p-4 text-xs text-indigo-200 flex gap-3 items-start">
+                <i class="fa-solid fa-lightbulb text-amber-400 text-lg mt-0.5"></i>
+                <div class="space-y-1">
+                    <p class="font-bold text-white">كيف تعمل هذه الشاشة مع تسجيل الدخول الخاص بك؟</p>
+                    <p class="leading-relaxed opacity-90">
+                        بما أنك مسجل الدخول إلى نظام القبان على نفس المتصفح، يتضمن خيار <span class="text-emerald-300 font-mono">credentials: 'include'</span> إرسال كوكيز الجلسة (Session Cookies) تلقائياً لمعرف الـ API. إذا ظهر لك خطأ <span class="text-rose-300 font-mono">CORS Error</span>، اضغط على زر دليل تخطي CORS بال الأعلى لتجاوز القيد بضغطات بسيطة.
+                    </p>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- RIGHT COLUMN: API Settings & Live Request Inspector (lg:col-span-5) -->
+        <section class="lg:col-span-5 flex flex-col gap-6">
+
+            <!-- CONFIGURATION CARD -->
+            <div class="bg-industrial-900 border border-gray-800 rounded-2xl p-5 shadow-lg space-y-4">
+                <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                    <h2 class="font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-amber-400"></i>
+                        إعدادات الـ API والاتصال
+                    </h2>
+                    <button onclick="saveSettings()" class="text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-lg transition">
+                        <i class="fa-solid fa-floppy-disk ml-1"></i>حفظ
+                    </button>
+                </div>
+
+                <!-- API URL Input -->
+                <div class="space-y-1.5">
+                    <label class="text-xs font-medium text-gray-300 flex justify-between">
+                        <span>رابط الـ API الخاص بالقبان (Target URL)</span>
+                        <span class="text-amber-400 text-[10px]">*مطلوب</span>
+                    </label>
+                    <div class="relative">
+                        <input type="url" id="api-url" placeholder="https://scale.company.local/api/v1/weight"
+                               value="https://api.myweighbridge.com/v1/live-weight"
+                               class="w-full bg-industrial-950 border border-gray-700 rounded-xl px-3 py-2.5 pl-8 text-xs font-mono text-gray-100 focus:outline-none focus:border-amber-500 transition">
+                        <i class="fa-solid fa-link absolute left-3 top-3 text-gray-500 text-xs"></i>
+                    </div>
+                </div>
+
+                <!-- JSON Path Field Extraction -->
+                <div class="space-y-1.5">
+                    <label class="text-xs font-medium text-gray-300 flex justify-between">
+                        <span>اسم حقل الوزن في استجابة الـ JSON</span>
+                        <span class="text-gray-400 text-[10px]">JSON Key Path</span>
+                    </label>
+                    <input type="text" id="json-path" placeholder="e.g. weight or data.gross_weight" value="weight"
+                           class="w-full bg-industrial-950 border border-gray-700 rounded-xl px-3 py-2 text-xs font-mono text-gray-100 focus:outline-none focus:border-amber-500 transition">
+                    <p class="text-[10px] text-gray-500">إذا كانت النتيجة كالتالي <code class="text-amber-400">{"weight": 14500}</code> اكتب <code class="text-amber-400">weight</code></p>
+                </div>
+
+                <!-- CORS Proxy Toggle & Input -->
+                <div class="pt-2 border-t border-gray-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex flex-col">
+                            <span class="text-xs font-medium text-gray-200">تفعيل CORS Proxy (وسيط)</span>
+                            <span class="text-[10px] text-gray-400">لتجاوز قيود حظر المتصفح للطلب</span>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="use-proxy" onchange="toggleProxyInput()" class="sr-only peer">
+                            <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+
+                    <div id="proxy-url-container" class="hidden space-y-1">
+                        <label class="text-[11px] text-gray-400">رابط خادم البروكسي (Proxy Prefix):</label>
+                        <input type="text" id="proxy-prefix" value="https://cors-anywhere.herokuapp.com/" placeholder="https://cors-anywhere.herokuapp.com/"
+                               class="w-full bg-industrial-950 border border-gray-800 rounded-lg px-3 py-1.5 text-xs font-mono text-gray-300 focus:outline-none focus:border-amber-500">
+                    </div>
+                </div>
+
+                <!-- Custom Headers Modal / Accordion -->
+                <details class="bg-industrial-950 border border-gray-800 rounded-xl p-3 text-xs">
+                    <summary class="font-medium text-gray-300 cursor-pointer flex justify-between items-center">
+                        <span><i class="fa-solid fa-code-merge ml-1 text-amber-400"></i> العناوين الإضافية (Custom Headers)</span>
+                        <i class="fa-solid fa-chevron-down text-gray-500 text-xs"></i>
+                    </summary>
+                    <div class="mt-3 space-y-2 pt-2 border-t border-gray-800">
+                        <p class="text-[10px] text-gray-400">يمكنك إضافة توكن أمان (Bearer Token) أو كوكيز إضافية إن لزم الأمر:</p>
+                        <textarea id="custom-headers" rows="2" placeholder='{"Authorization": "Bearer token...", "X-Custom-Header": "value"}'
+                                  class="w-full bg-industrial-900 border border-gray-800 rounded-lg p-2 font-mono text-[11px] text-emerald-400 focus:outline-none focus:border-amber-500"></textarea>
+                    </div>
+                </details>
+
+            </div>
+
+            <!-- LIVE REQUEST INSPECTOR / LOGS -->
+            <div class="bg-industrial-900 border border-gray-800 rounded-2xl p-5 shadow-lg flex-1 flex flex-col min-h-[280px]">
+                <div class="flex justify-between items-center border-b border-gray-800 pb-3 mb-3">
+                    <h2 class="font-bold text-xs text-white flex items-center gap-2">
+                        <i class="fa-solid fa-terminal text-emerald-400"></i>
+                        سجل الاستجابة المباشرة (API Response)
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <button onclick="clearLogs()" class="text-[11px] text-gray-400 hover:text-white transition">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Response Status Output Header -->
+                <div class="flex items-center justify-between bg-industrial-950 border border-gray-800 p-2 rounded-lg text-xs font-mono mb-2">
+                    <div>
+                        <span class="text-gray-500">Status:</span>
+                        <span id="http-status-code" class="text-emerald-400 font-bold mr-1">--</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Time:</span>
+                        <span id="last-update-time" class="text-gray-300 mr-1">--:--:--</span>
+                    </div>
+                </div>
+
+                <!-- Raw JSON Output Display -->
+                <div class="flex-1 bg-industrial-950 border border-gray-800 rounded-xl p-3 font-mono text-xs overflow-auto max-h-[220px]">
+                    <pre id="json-response-viewer" class="text-emerald-400 whitespace-pre-wrap break-all">// في انتظار إرسال الطلب الأول...</pre>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- CORS & SECURITY TROUBLESHOOTING MODAL -->
+    <div id="cors-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-industrial-900 border border-gray-700 w-full max-w-2xl rounded-2xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            
+            <!-- Close Button -->
+            <button onclick="toggleCorsModal()" class="absolute left-4 top-4 text-gray-400 hover:text-white transition">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+
+            <!-- Modal Header -->
+            <div class="flex items-center gap-3 border-b border-gray-800 pb-4 mb-4">
+                <div class="p-3 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/30">
+                    <i class="fa-solid fa-shield-virus text-2xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-white">حل مشكلة حظر المتصفح (CORS Error)</h3>
+                    <p class="text-xs text-gray-400">تجاوز القيود عندما يمنع المتصفح جلب بيانات القبان مباشرة</p>
+                </div>
+            </div>
+
+            <!-- Solutions List -->
+            <div class="space-y-4 text-xs">
+                
+                <!-- Solution 1: Chrome Extension -->
+                <div class="bg-industrial-950 border border-gray-800 p-4 rounded-xl space-y-2">
+                    <div class="flex items-center justify-between text-amber-400 font-bold">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid fa-puzzle-piece"></i>
+                            الحل الأول: استخدام إضافة متصفح (الأسهل والأسرع)
+                        </span>
+                        <span class="bg-emerald-500/10 text-emerald-400 text-[10px] px-2 py-0.5 rounded">موصى به</span>
+                    </div>
+                    <p class="text-gray-300 leading-relaxed">
+                        قم بتثبيت إضافة متصفح تقوم بفك حظر الـ CORS تلقائياً أثناء وجودك على كمبيوترك:
+                    </p>
+                    <ul class="list-disc list-inside text-gray-400 space-y-1 mr-2">
+                        <li>ثبّت إضافة <strong class="text-white">"Allow CORS: Access-Control-Allow-Origin"</strong> لمتصفح Chrome أو Edge.</li>
+                        <li>قم بتفعيل الإضافة (إضاءة الأيقونة باللون الأخضر).</li>
+                        <li>اعمل إعادة تحميل لهذه الصفحة وستعمل عملية جلب الوزن فوراً.</li>
+                    </ul>
+                </div>
+
+                <!-- Solution 2: Browser Security Flag -->
+                <div class="bg-industrial-950 border border-gray-800 p-4 rounded-xl space-y-2">
+                    <div class="flex items-center justify-between text-amber-400 font-bold">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-solid fa-terminal"></i>
+                            الحل الثاني: تشغيل Chrome بوضع تعطيل حظر الأمان
+                        </span>
+                    </div>
+                    <p class="text-gray-300 leading-relaxed">
+                        يمكنك فتح متصفح Chrome عبر موجه الأوامر (CMD / Terminal) مع إيقاف فحص CORS بنفس الجلسة:
+                    </p>
+                    <div class="bg-black/60 p-2.5 rounded-lg border border-gray-800 font-mono text-[11px] text-amber-300 flex justify-between items-center dir-ltr">
+                        <code>chrome.exe --disable-web-security --user-data-dir="C:/temp-chrome"</code>
+                        <button onclick="copyToClipboard('chrome.exe --disable-web-security --user-data-dir=\'C:/temp-chrome\'')" class="text-gray-400 hover:text-white transition text-xs">
+                            <i class="fa-solid fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Solution 3: Local Node/Python Proxy -->
+                <div class="bg-industrial-950 border border-gray-800 p-4 rounded-xl space-y-2">
+                    <div class="flex items-center justify-between text-amber-400 font-bold">
+                        <span class="flex items-center gap-2">
+                            <i class="fa-brands fa-python"></i>
+                            الحل الثالث: تشغيل وسيط محلي (Local Proxy Script)
+                        </span>
+                    </div>
+                    <p class="text-gray-300 leading-relaxed">
+                        إذا أردت حلاً دائماً مستقلاً، يمكنك تشغيل هذا السكربت البسيط بلغة Python على جهازك ليعمل كـ Proxy محلي يعيد إرسال جلسة الدخول دون قيود:
+                    </p>
+                    <div class="bg-black/60 p-2.5 rounded-lg border border-gray-800 font-mono text-[10px] text-emerald-400 overflow-x-auto dir-ltr">
+<pre>from flask import Flask, request, jsonify
+import requests
+
+app = Flask(__name__)
+
+@app.route('/get-weight')
+def get_weight():
+    # استبدل بالرابط الحقيقي للقبان
+    res = requests.get('YOUR_SCALE_API_URL', cookies=request.cookies)
+    return (res.text, res.status_code, {'Access-Control-Allow-Origin': '*'})
+
+app.run(port=5000)</pre>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer modal action -->
+            <div class="mt-6 flex justify-end">
+                <button onclick="toggleCorsModal()" class="bg-amber-500 hover:bg-amber-600 text-black font-bold px-5 py-2 rounded-xl transition text-xs">
+                    فهمت ذلك، إغلاق
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // Application State
+        let autoRefreshInterval = null;
+        let isAutoRefreshing = false;
+        let activeUnit = 'KG'; // 'KG' or 'TON'
+        let simulatedMode = false;
+        let simulatedWeightBase = 12450;
+
+        // Initialize On Load
+        window.onload = function() {
+            loadSavedSettings();
+            updateIntervalProgress(0);
+        };
+
+        // Main Function to Fetch Weight Data from API
+        async function fetchWeightData() {
+            const apiUrlInput = document.getElementById('api-url').value.trim();
+            const jsonKeyPath = document.getElementById('json-path').value.trim();
+            const useProxy = document.getElementById('use-proxy').checked;
+            const proxyPrefix = document.getElementById('proxy-prefix').value.trim();
+            const headersInput = document.getElementById('custom-headers').value.trim();
+
+            if (!apiUrlInput && !simulatedMode) {
+                alert('يرجى إدخال رابط الـ API الخاص بالقبان أولاً');
+                return;
+            }
+
+            // Visual Sync Indicators
+            const syncIcon = document.getElementById('sync-icon');
+            if (syncIcon) syncIcon.classList.add('fa-spin');
+
+            const startTime = performance.now();
+            const statusDot = document.getElementById('connection-status-dot');
+            const statusText = document.getElementById('connection-status-text');
+            const statusLight = document.getElementById('scale-status-light');
+            const statusLabel = document.getElementById('scale-status-label');
+
+            // Handle Simulation Mode
+            if (simulatedMode) {
+                setTimeout(() => {
+                    // Random small variation in weight to simulate active scale movement
+                    const variation = Math.floor(Math.random() * 30) - 15;
+                    simulatedWeightBase = Math.max(0, simulatedWeightBase + variation);
+
+                    const mockResponse = {
+                        status: "success",
+                        device_id: "SCALE-IND-01",
+                        timestamp: new Date().toISOString(),
+                        weight: simulatedWeightBase,
+                        unit: "KG",
+                        stable: true
+                    };
+
+                    const endTime = performance.now();
+                    const latency = Math.round(endTime - startTime);
+
+                    displayWeight(simulatedWeightBase);
+                    updateResponseViewer(200, mockResponse, latency);
+
+                    // Update UI status
+                    statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-indicator";
+                    statusText.innerText = "وضع المحاكاة نشط";
+                    statusText.className = "text-emerald-400 font-medium";
+
+                    statusLight.className = "w-3 h-3 rounded-full bg-emerald-500 pulse-indicator";
+                    statusLabel.innerText = "ONLINE (SIM)";
+                    statusLabel.className = "text-xs font-mono font-bold text-emerald-400";
+
+                    if (syncIcon) syncIcon.classList.remove('fa-spin');
+                }, 300);
+                return;
+            }
+
+            // Build Target URL (with CORS Proxy if enabled)
+            let finalUrl = apiUrlInput;
+            if (useProxy && proxyPrefix) {
+                finalUrl = proxyPrefix + apiUrlInput;
+            }
+
+            // Prepare Custom Headers
+            let headers = {};
+            if (headersInput) {
+                try {
+                    headers = JSON.parse(headersInput);
+                } catch (e) {
+                    console.warn('Headers input is not valid JSON');
+                }
+            }
+
+            try {
+                // Critical step: credentials 'include' sends session cookies along with cross-origin request
+                const response = await fetch(finalUrl, {
+                    method: 'GET',
+                    headers: headers,
+                    credentials: 'include'
+                });
+
+                const endTime = performance.now();
+                const latency = Math.round(endTime - startTime);
+
+                const data = await response.json();
+
+                // Update Inspector Logs
+                updateResponseViewer(response.status, data, latency);
+
+                if (response.ok) {
+                    // Extract Weight Value from nested object if path given
+                    const weightVal = extractValueByPath(data, jsonKeyPath);
+
+                    if (weightVal !== undefined && weightVal !== null && !isNaN(parseFloat(weightVal))) {
+                        displayWeight(parseFloat(weightVal));
+
+                        // Set Status to Connected / Active
+                        statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500 pulse-indicator";
+                        statusText.innerText = "متصل بالقبان";
+                        statusText.className = "text-emerald-400 font-medium";
+
+                        statusLight.className = "w-3 h-3 rounded-full bg-emerald-500 pulse-indicator";
+                        statusLabel.innerText = "SCALE ONLINE";
+                        statusLabel.className = "text-xs font-mono font-bold text-emerald-400";
+                    } else {
+                        showErrorState("تعذر العثور على حقل الوزن في الـ JSON");
+                    }
+                } else {
+                    showErrorState(`HTTP Error: ${response.status}`);
+                }
+
+            } catch (error) {
+                console.error('Fetch Error:', error);
+                const endTime = performance.now();
+                const latency = Math.round(endTime - startTime);
+
+                updateResponseViewer('CORS / ERR', {
+                    error: "فشل الاتصال بـ API القبان",
+                    details: error.message,
+                    solution: "قد تكون هذه المشكلة بسبب CORS. اضغط على زر 'دليل تخطي CORS' للحل."
+                }, latency);
+
+                showErrorState("خطأ اتصال / CORS");
+            } finally {
+                if (syncIcon) syncIcon.classList.remove('fa-spin');
+            }
+        }
+
+        // Helper to extract nested key like 'data.weight' or 'weight'
+        function extractValueByPath(obj, path) {
+            if (!path) return obj.weight || obj.val || obj.value || obj;
+            return path.split('.').reduce((acc, part) => acc && acc[part], obj);
+        }
+
+        // Display formatted weight with unit handling
+        function displayWeight(rawKgValue) {
+            const displayEl = document.getElementById('weight-display');
+
+            let finalValue = rawKgValue;
+            if (activeUnit === 'TON') {
+                finalValue = rawKgValue / 1000;
+            }
+
+            // Format number with standard thousand separators
+            const formatted = finalValue.toLocaleString('en-US', {
+                minimumFractionDigits: activeUnit === 'TON' ? 2 : 0,
+                maximumFractionDigits: 2
+            });
+
+            displayEl.innerText = formatted;
+
+            // Change color dynamically based on weight status
+            if (rawKgValue === 0) {
+                displayEl.className = "led-font-green text-6xl sm:text-7xl md:text-8xl font-bold tracking-wider";
+            } else {
+                displayEl.className = "led-font-amber text-6xl sm:text-7xl md:text-8xl font-bold tracking-wider";
+            }
+        }
+
+        // Update Log Inspector Output
+        function updateResponseViewer(statusCode, jsonData, latencyMs) {
+            const statusEl = document.getElementById('http-status-code');
+            const timeEl = document.getElementById('last-update-time');
+            const latencyEl = document.getElementById('latency-val');
+            const jsonViewer = document.getElementById('json-response-viewer');
+
+            statusEl.innerText = statusCode;
+            if (statusCode === 200) {
+                statusEl.className = "text-emerald-400 font-bold mr-1";
+            } else {
+                statusEl.className = "text-rose-400 font-bold mr-1";
+            }
+
+            const now = new Date();
+            timeEl.innerText = now.toLocaleTimeString('ar-EG');
+            latencyEl.innerText = `${latencyMs} ms`;
+
+            jsonViewer.innerText = JSON.stringify(jsonData, null, 2);
+        }
+
+        function showErrorState(msg) {
+            const statusDot = document.getElementById('connection-status-dot');
+            const statusText = document.getElementById('connection-status-text');
+            const statusLight = document.getElementById('scale-status-light');
+            const statusLabel = document.getElementById('scale-status-label');
+            const displayEl = document.getElementById('weight-display');
+
+            statusDot.className = "w-2.5 h-2.5 rounded-full bg-rose-500";
+            statusText.innerText = msg;
+            statusText.className = "text-rose-400 font-medium";
+
+            statusLight.className = "w-3 h-3 rounded-full bg-rose-500";
+            statusLabel.innerText = "ERROR / OFFLINE";
+            statusLabel.className = "text-xs font-mono font-bold text-rose-400";
+
+            displayEl.className = "led-font-red text-6xl sm:text-7xl md:text-8xl font-bold tracking-wider";
+        }
+
+        // Auto Refresh Logic
+        function toggleAutoRefresh() {
+            const autoBtnText = document.getElementById('auto-btn-text');
+            const autoPlayIcon = document.getElementById('auto-play-icon');
+
+            if (isAutoRefreshing) {
+                clearInterval(autoRefreshInterval);
+                isAutoRefreshing = false;
+                autoBtnText.innerText = "تفعيل التحديث التلقائي";
+                autoPlayIcon.className = "fa-solid fa-play text-emerald-400";
+                updateIntervalProgress(0);
+            } else {
+                isAutoRefreshing = true;
+                autoBtnText.innerText = "إيقاف التحديث التلقائي";
+                autoPlayIcon.className = "fa-solid fa-pause text-amber-400";
+                
+                fetchWeightData(); // Fetch immediately on start
+                startTimerInterval();
+            }
+        }
+
+        function startTimerInterval() {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            const intervalMs = parseInt(document.getElementById('refresh-interval').value);
+            
+            let elapsedTime = 0;
+            const step = 100;
+
+            autoRefreshInterval = setInterval(() => {
+                elapsedTime += step;
+                const progressPercent = (elapsedTime / intervalMs) * 100;
+                updateIntervalProgress(progressPercent);
+
+                if (elapsedTime >= intervalMs) {
+                    elapsedTime = 0;
+                    fetchWeightData();
+                }
+            }, step);
+        }
+
+        function updateInterval() {
+            if (isAutoRefreshing) {
+                startTimerInterval();
+            }
+        }
+
+        function updateIntervalProgress(percent) {
+            const progressEl = document.getElementById('refresh-progress');
+            if (progressEl) progressEl.style.width = `${percent}%`;
+        }
+
+        // Unit Switching
+        function setUnit(unit) {
+            activeUnit = unit;
+            const kgBtn = document.getElementById('unit-kg-btn');
+            const tonBtn = document.getElementById('unit-ton-btn');
+
+            if (unit === 'KG') {
+                kgBtn.className = "px-3 py-1 text-xs font-bold rounded-md bg-amber-500 text-black transition";
+                tonBtn.className = "px-3 py-1 text-xs font-bold rounded-md text-gray-400 hover:text-white transition";
+            } else {
+                tonBtn.className = "px-3 py-1 text-xs font-bold rounded-md bg-amber-500 text-black transition";
+                kgBtn.className = "px-3 py-1 text-xs font-bold rounded-md text-gray-400 hover:text-white transition";
+            }
+
+            fetchWeightData();
+        }
+
+        // Zeroing Scale Visual Action
+        function zeroScale() {
+            displayWeight(0);
+            const jsonViewer = document.getElementById('json-response-viewer');
+            jsonViewer.innerText = "// تم عمل ZERO للشاشة محلياً";
+        }
+
+        // Toggle Simulation Mode
+        function toggleSimulatedData() {
+            simulatedMode = !simulatedMode;
+            const btnSim = document.getElementById('btn-simulate');
+
+            if (simulatedMode) {
+                btnSim.className = "px-3 py-1.5 bg-emerald-500/20 text-xs text-emerald-400 border border-emerald-500/30 rounded-lg transition font-bold";
+                btnSim.innerHTML = '<i class="fa-solid fa-check ml-1"></i> وضع المحاكاة مفعّل';
+            } else {
+                btnSim.className = "px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-xs text-amber-400 border border-amber-500/30 rounded-lg transition";
+                btnSim.innerHTML = '<i class="fa-solid fa-vial ml-1"></i> وضع المحاكاة للتجربة';
+            }
+
+            fetchWeightData();
+        }
+
+        // UI Helpers
+        function toggleProxyInput() {
+            const useProxy = document.getElementById('use-proxy').checked;
+            const proxyContainer = document.getElementById('proxy-url-container');
+            const proxyBadge = document.getElementById('proxy-badge');
+
+            if (useProxy) {
+                proxyContainer.classList.remove('hidden');
+                proxyBadge.classList.remove('hidden');
+            } else {
+                proxyContainer.classList.add('hidden');
+                proxyBadge.classList.add('hidden');
+            }
+        }
+
+        function toggleCorsModal() {
+            const modal = document.getElementById('cors-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        function clearLogs() {
+            document.getElementById('json-response-viewer').innerText = "// تم مسح السجل.";
+        }
+
+        function copyToClipboard(text) {
+            const tempInput = document.createElement("input");
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempInput);
+            alert("تم نسخ الأمر إلى المحافظة!");
+        }
+
+        // Save / Load Settings to LocalStorage
+        function saveSettings() {
+            const config = {
+                apiUrl: document.getElementById('api-url').value,
+                jsonPath: document.getElementById('json-path').value,
+                useProxy: document.getElementById('use-proxy').checked,
+                proxyPrefix: document.getElementById('proxy-prefix').value,
+                customHeaders: document.getElementById('custom-headers').value,
+                refreshInterval: document.getElementById('refresh-interval').value
+            };
+            localStorage.setItem('weighbridge_config', JSON.stringify(config));
+            alert('تم حفظ إعدادات الاتصال بنجاح!');
+        }
+
+        function loadSavedSettings() {
+            const saved = localStorage.getItem('weighbridge_config');
+            if (saved) {
+                try {
+                    const config = JSON.parse(saved);
+                    if (config.apiUrl) document.getElementById('api-url').value = config.apiUrl;
+                    if (config.jsonPath) document.getElementById('json-path').value = config.jsonPath;
+                    if (config.useProxy !== undefined) document.getElementById('use-proxy').checked = config.useProxy;
+                    if (config.proxyPrefix) document.getElementById('proxy-prefix').value = config.proxyPrefix;
+                    if (config.customHeaders) document.getElementById('custom-headers').value = config.customHeaders;
+                    if (config.refreshInterval) document.getElementById('refresh-interval').value = config.refreshInterval;
+                    
+                    toggleProxyInput();
+                } catch (e) {
+                    console.error('Error loading config', e);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
