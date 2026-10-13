@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>شاشة عرض وزن القبان - Weighbridge Display</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Digital Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background-color: #0f172a;
+        }
+        .digital-num {
+            font-family: 'Chakra Petch', monospace;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen flex flex-col justify-between p-4 md:p-8">
+
+    <!-- Header Section -->
+    <header class="max-w-5xl mx-auto w-full flex justify-between items-center border-b border-slate-800 pb-4 mb-6">
+        <div class="flex items-center space-x-3 space-x-reverse">
+            <div class="bg-amber-500 text-slate-950 p-3 rounded-lg shadow-lg">
+                <i class="fa-solid fa-truck-monster text-2xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-white">نظام مؤشر القبان الإلكتروني</h1>
+                <p class="text-xs text-slate-400">نظام المراقبة والجلب المباشر للوزن القائم</p>
+            </div>
+        </div>
+        <div id="status-badge" class="flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700 text-sm text-slate-400">
+            <span class="w-2.5 h-2.5 rounded-full bg-slate-500 animate-pulse" id="status-dot"></span>
+            <span id="status-text">بانتظار الاتصال...</span>
+        </div>
+    </header>
+
+    <!-- Main Indicator Content -->
+    <main class="max-w-4xl mx-auto w-full grid grid-cols-1 gap-6">
+
+        <!-- Control Bar (API Settings) -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl">
+            <label class="block text-xs text-slate-400 mb-2">رابط الـ API الخاص بالقبان (مباشر):</label>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <input type="text" id="api-url" placeholder="أدخل رابط الـ API هنا (مثال: http://192.168.1.50/api/weight)" 
+                    class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-amber-400 font-mono focus:outline-none focus:border-amber-500">
+                <button onclick="toggleFetching()" id="btn-toggle" class="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6 py-2.5 rounded-lg transition-all flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-play" id="btn-icon"></i>
+                    <span id="btn-text">بدء القراءة</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Scale Screen Display -->
+        <div class="bg-slate-950 border-4 border-slate-800 rounded-2xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+            <!-- Digital Backdrop Effect -->
+            <div class="absolute inset-0 bg-gradient-to-b from-amber-500/5 to-transparent pointer-events-none"></div>
+
+            <div class="flex justify-between items-center text-xs text-slate-500 mb-4 font-mono">
+                <span>INDICATOR UNIT: KG</span>
+                <span id="last-update">آخر تحديث: --:--:--</span>
+            </div>
+
+            <!-- Number Display -->
+            <div class="text-center py-6 sm:py-10">
+                <div class="text-6xl sm:text-8xl md:text-9xl font-bold text-amber-400 digital-num tracking-wider drop-shadow-[0_0_25px_rgba(245,158,11,0.3)]" id="weight-display">
+                    00000
+                </div>
+                <div class="text-slate-500 text-sm sm:text-base mt-2 font-medium">الوزن القائم الكلي (كغم / KG)</div>
+            </div>
+
+            <!-- Additional Indicators -->
+            <div class="grid grid-cols-3 gap-2 sm:gap-4 pt-6 border-t border-slate-800 text-center text-xs sm:text-sm">
+                <div class="bg-slate-900/50 p-2 sm:p-3 rounded-lg border border-slate-800">
+                    <span class="block text-slate-500 mb-1">الحالة</span>
+                    <span class="text-emerald-400 font-bold" id="scale-status">مستقر</span>
+                </div>
+                <div class="bg-slate-900/50 p-2 sm:p-3 rounded-lg border border-slate-800">
+                    <span class="block text-slate-500 mb-1">الصفر الآلي</span>
+                    <span class="text-slate-300 font-bold">0.00</span>
+                </div>
+                <div class="bg-slate-900/50 p-2 sm:p-3 rounded-lg border border-slate-800">
+                    <span class="block text-slate-500 mb-1">معدل التحديث</span>
+                    <span class="text-amber-400 font-bold">1 ثانية</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log & Debug Console -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-xs font-mono">
+            <div class="flex justify-between items-center mb-2 text-slate-400">
+                <span>سجل الاستجابة المباشرة (Raw Response):</span>
+                <button onclick="clearLog()" class="text-slate-500 hover:text-slate-300">مسح السجل</button>
+            </div>
+            <div id="log-box" class="h-24 overflow-y-auto bg-slate-950 p-3 rounded text-slate-400 space-y-1">
+                <div>[النظام جاهز] اضغط على "بدء القراءة" لجلب الوزن...</div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center text-xs text-slate-600 mt-8">
+        نظام القبان - جميع الحقوق محفوظة &copy; 2026
+    </footer>
+
+    <!-- Logic Script -->
+    <script>
+        let intervalId = null;
+        let isFetching = false;
+
+        function log(msg, type = 'info') {
+            const logBox = document.getElementById('log-box');
+            const time = new Date().toLocaleTimeString('ar-JO');
+            let color = 'text-slate-400';
+            if (type === 'success') color = 'text-emerald-400';
+            if (type === 'error') color = 'text-red-400';
+            
+            const item = document.createElement('div');
+            item.className = color;
+            item.innerText = `[${time}] ${msg}`;
+            logBox.appendChild(item);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log-box').innerHTML = '<div>[تم مسح السجل]</div>';
+        }
+
+        async function fetchWeight() {
+            const apiUrl = document.getElementById('api-url').value.trim();
+            if (!apiUrl) {
+                log('يرجى إدخال رابط الـ API بشكل صحيح', 'error');
+                stopFetching();
+                return;
+            }
+
+            try {
+                // إرسال الطلب مع الاعتمادات (Session/Cookies) لقراءة الرقم المباشر
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    credentials: 'include' // للحفاظ على الجلسة الحالية
+                });
+
+                if (!response.ok) {
+                    throw new Error(`خطأ استجابة Server: ${response.status}`);
+                }
+
+                // قراءة النص المباشر كـ text وليس json
+                const rawData = await response.text();
+                
+                // تنظيف النص واستخراج الرقم
+                const cleanWeight = rawData.trim();
+                const numericValue = parseFloat(cleanWeight);
+
+                if (!isNaN(numericValue)) {
+                    document.getElementById('weight-display').innerText = numericValue.toLocaleString('en-US');
+                    document.getElementById('last-update').innerText = 'آخر تحديث: ' + new Date().toLocaleTimeString('ar-JO');
+                    updateStatus(true, 'متصل - جلب مستمر');
+                    log(`تم قراءة الوزن بنجاح: ${cleanWeight}`, 'success');
+                } else {
+                    document.getElementById('weight-display').innerText = cleanWeight;
+                    log(`استجابة غير رقمية: ${cleanWeight}`, 'error');
+                }
+
+            } catch (error) {
+                updateStatus(false, 'خطأ في الاتصال / CORS');
+                log(`فشل الجلب: ${error.message}`, 'error');
+            }
+        }
+
+        function toggleFetching() {
+            if (isFetching) {
+                stopFetching();
+            } else {
+                startFetching();
+            }
+        }
+
+        function startFetching() {
+            const apiUrl = document.getElementById('api-url').value.trim();
+            if (!apiUrl) {
+                alert('لطفاً ضع رابط الـ API أولاً');
+                return;
+            }
+
+            isFetching = true;
+            document.getElementById('btn-text').innerText = 'إيقاف القراءة';
+            document.getElementById('btn-icon').className = 'fa-solid fa-stop';
+            document.getElementById('btn-toggle').classList.replace('bg-amber-500', 'bg-red-500');
+            document.getElementById('btn-toggle').classList.replace('hover:bg-amber-600', 'hover:bg-red-600');
+
+            fetchWeight(); // قراءة فورية أولى
+            intervalId = setInterval(fetchWeight, 1000); // تحديث كل ثانية
+        }
+
+        function stopFetching() {
+            isFetching = false;
+            clearInterval(intervalId);
+            document.getElementById('btn-text').innerText = 'بدء القراءة';
+            document.getElementById('btn-icon').className = 'fa-solid fa-play';
+            document.getElementById('btn-toggle').classList.replace('bg-red-500', 'bg-amber-500');
+            document.getElementById('btn-toggle').classList.replace('hover:bg-red-600', 'hover:bg-amber-600');
+            updateStatus(false, 'متوقف');
+            log('تم إيقاف جلب البيانات تلقائياً');
+        }
+
+        function updateStatus(isOnline, text) {
+            const badge = document.getElementById('status-badge');
+            const dot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+
+            statusText.innerText = text;
+            if (isOnline) {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse';
+                badge.className = 'flex items-center gap-2 bg-emerald-950/50 px-3 py-1.5 rounded-full border border-emerald-800 text-sm text-emerald-400';
+            } else {
+                dot.className = 'w-2.5 h-2.5 rounded-full bg-red-500';
+                badge.className = 'flex items-center gap-2 bg-red-950/50 px-3 py-1.5 rounded-full border border-red-800 text-sm text-red-400';
+            }
+        }
+    </script>
+</body>
+</html>
